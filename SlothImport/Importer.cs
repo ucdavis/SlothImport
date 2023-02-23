@@ -17,12 +17,12 @@ public interface IImporter
 
 public class Importer : IImporter
 {
-    private readonly FileInfo _csvFile;
+    private readonly ImportOptions _importOptions;
     private readonly ISlothApiClient _slothClient;
 
     public Importer(IOptions<ImportOptions> importOptions, ISlothApiClient slothClient)
     {
-        _csvFile = importOptions.Value.CsvFile;
+        _importOptions = importOptions.Value;
         _slothClient = slothClient;
     }
 
@@ -53,7 +53,7 @@ public class Importer : IImporter
 
     private async Task ImportData(CancellationToken cancellationToken)
     {
-        using var reader = _csvFile.OpenText();
+        using var reader = _importOptions.CsvFile.OpenText();
         using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture) { HasHeaderRecord = true });
         var record = new TransactionRecord();
         var i = 0;
@@ -69,7 +69,7 @@ public class Importer : IImporter
 
     private bool ValidateData(CancellationToken cancellationToken)
     {
-        using var reader = _csvFile.OpenText();
+        using var reader = _importOptions.CsvFile.OpenText();
         using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture) { HasHeaderRecord = true });
         var record = new TransactionRecord();
         var i = 0;
@@ -106,8 +106,8 @@ public class Importer : IImporter
             ProcessorTrackingNumber = record.ProcessorTrackingNumber,
             KfsTrackingNumber = record.KfsTrackingNumber,
             Description = record.TxnDescription,
-            ValidateFinancialSegmentStrings = false,
-            AutoApprove = false,
+            ValidateFinancialSegmentStrings = _importOptions.ValidateCoA,
+            AutoApprove = _importOptions.AutoApprove,
             Transfers = new List<CreateTransferViewModel>()
             {
                 new CreateTransferViewModel(
@@ -172,6 +172,5 @@ public class Importer : IImporter
             Log.Error(ex, "Unexpected error sending import request for record {RecordIndex}", recordIndex);
             throw;
         }
-
     }
 }
