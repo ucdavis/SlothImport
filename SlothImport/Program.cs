@@ -23,23 +23,25 @@ class Program
     static async Task<int> Main(string[] args)
     {
         // init args parsing
-        _baseUrlOption = new Option<string>("--BaseUrl", () => "", "The base url of the sloth api");
+        _baseUrlOption = new Option<string>("--BaseUrl", "The base url of the sloth api (required)");
         _baseUrlOption.AddAlias("-u");
         _baseUrlOption.AddAlias("-url");
-        _apiKeyOption = new Option<string>("--ApiKey", () => "", "The api key to use");
+        _apiKeyOption = new Option<string>("--ApiKey", "The api key to use (required)");
         _apiKeyOption.AddAlias("-k");
         _apiKeyOption.AddAlias("-key");
-        _csvFileOption = new Option<FileInfo?>("--CsvFile", () => null, "The csv file to import");
+        _csvFileOption = new Option<FileInfo?>("--CsvFile", "The csv file to import (required)");
         _csvFileOption.AddAlias("-f");
         _csvFileOption.AddAlias("-file");
-        _validateCoAOption = new Option<bool?>("--ValidateCoA", () => null, "Have Sloth perform validation of Chart of Accounts");
+        _validateCoAOption = new Option<bool?>("--ValidateCoA", "Have Sloth perform validation of Chart of Accounts");
         _validateCoAOption.AddAlias("-v");
         _validateCoAOption.AddAlias("-validate");
-        _autoApproveOption = new Option<bool?>("--AutoApprove", () => null, "Have Sloth auto-approve imported transactions");
+        _autoApproveOption = new Option<bool?>("--AutoApprove", "Have Sloth auto-approve imported transactions");
         _autoApproveOption.AddAlias("-a");
         _autoApproveOption.AddAlias("-approve");
 
-        var rootCommand = new RootCommand("Imports sloth transactions from a csv file");
+        var rootCommand = new RootCommand("Imports sloth transactions from a csv file" + Environment.NewLine + Environment.NewLine
+        + "All options can be specified via corresponding environment variables prefixed with " + Environment.NewLine
+        + "\"SlothImport__\", or via user secrets if in a development environment");
         rootCommand.AddOption(_baseUrlOption);
         rootCommand.AddOption(_apiKeyOption);
         rootCommand.AddOption(_csvFileOption);
@@ -82,12 +84,6 @@ class Program
 
     private static IHostBuilder CreateHostBuilder(InvocationContext context)
     {
-        var baseUrlArg = context.ParseResult.GetValueForOption(_baseUrlOption);
-        var apiKeyArg = context.ParseResult.GetValueForOption(_apiKeyOption);
-        var csvFileArg = context.ParseResult.GetValueForOption(_csvFileOption);
-        var validateCoAArg = context.ParseResult.GetValueForOption(_validateCoAOption);
-        var autoApproveArg = context.ParseResult.GetValueForOption(_autoApproveOption);
-
         return Host.CreateDefaultBuilder().ConfigureLogging(logging =>
             {
                 logging.ClearProviders();
@@ -108,26 +104,34 @@ class Program
 
                 // Register ImportOptions, giving cli arguments precedence
                 // Not sure if there's a better way. There is a CommandLineConfigurationProvider, but it's too restrictive
-                var apiKey = !string.IsNullOrWhiteSpace(apiKeyArg) ? apiKeyArg : ctx.Configuration["ImportOptions:ApiKey"] ?? "";
-                var baseUrl = !string.IsNullOrWhiteSpace(baseUrlArg) ? baseUrlArg : ctx.Configuration["ImportOptions:BaseUrl"] ?? "";
-                var csvFileName = ctx.Configuration["ImportOptions:CsvFile"] ?? "";
-                var csvFile = csvFileArg != null ? csvFileArg : (string.IsNullOrWhiteSpace(csvFileName) ? null : new FileInfo(csvFileName));
-                var validateCoA = validateCoAArg.HasValue ? validateCoAArg.Value : ctx.Configuration.GetValue<bool>("ImportOptions:ValidateCoA");
-                var autoApprove = autoApproveArg.HasValue ? autoApproveArg.Value : ctx.Configuration.GetValue<bool>("ImportOptions:AutoApprove");
-
+                var apiKeyArg = context.ParseResult.GetValueForOption(_apiKeyOption);
+                var apiKey = !string.IsNullOrWhiteSpace(apiKeyArg) ? apiKeyArg : ctx.Configuration["SlothImport:ApiKey"] ?? "";
                 if (string.IsNullOrWhiteSpace(apiKey))
                 {
                     throw new Exception("No value supplied for ApiKey");
                 }
+
+                var baseUrlArg = context.ParseResult.GetValueForOption(_baseUrlOption);
+                var baseUrl = !string.IsNullOrWhiteSpace(baseUrlArg) ? baseUrlArg : ctx.Configuration["SlothImport:BaseUrl"] ?? "";
                 if (string.IsNullOrWhiteSpace(baseUrl))
                 {
                     throw new Exception("No value supplied for BaseUrl");
                 }
+
+                var csvFileArg = context.ParseResult.GetValueForOption(_csvFileOption);
+                var csvFileName = ctx.Configuration["SlothImport:CsvFile"] ?? "";
+                var csvFile = csvFileArg != null ? csvFileArg : (string.IsNullOrWhiteSpace(csvFileName) ? null : new FileInfo(csvFileName));
                 if (csvFile == null)
                 {
                     Log.Information(Directory.GetCurrentDirectory());
                     throw new Exception("No value supplied for CsvFile");
                 }
+
+                var validateCoAArg = context.ParseResult.GetValueForOption(_validateCoAOption);
+                var validateCoA = validateCoAArg.HasValue ? validateCoAArg.Value : ctx.Configuration.GetValue<bool>("SlothImport:ValidateCoA");
+
+                var autoApproveArg = context.ParseResult.GetValueForOption(_autoApproveOption);
+                var autoApprove = autoApproveArg.HasValue ? autoApproveArg.Value : ctx.Configuration.GetValue<bool>("SlothImport:AutoApprove");
 
                 services.AddOptions<ImportOptions>()
                     .Configure(o =>
